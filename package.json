@@ -14,7 +14,15 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src/**/*.ts",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run lint && npm test && npm run build",
+    "version": "git add -A",
+    "postversion": "git push && git push --tags",
+    "publish:dry-run": "npm publish --dry-run",
+    "publish:public": "npm publish --access public",
+    "publish:patch": "npm version patch && npm publish --access public",
+    "publish:minor": "npm version minor && npm publish --access public",
+    "publish:major": "npm version major && npm publish --access public"
   },
   "keywords": [
     "dependencies",
@@ -48,5 +56,19 @@
   },
   "engines": {
     "node": ">=16.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sraftopo/dep-optimizer.git"
+  },
+  "homepage": "https://github.com/sraftopo/dep-optimizer#readme",
+  "bugs": {
+    "url": "https://github.com/sraftopo/dep-optimizer/issues"
   }
 }
