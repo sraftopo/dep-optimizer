@@ -255,7 +255,7 @@ npm run test:watch
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/dep-optimizer.git
+git clone https://github.com/sraftopo/dep-optimizer.git
 
 # Install dependencies
 npm install
@@ -325,7 +325,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🐛 Issues
 
-Found a bug? Have a feature request? [Open an issue](https://github.com/yourusername/dep-optimizer/issues)!
+Found a bug? Have a feature request? [Open an issue](https://github.com/sraftopo/dep-optimizer/issues)!
 
 ## 📝 Changelog
 
