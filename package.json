@@ -1,6 +1,6 @@
 {
   "name": "dep-optimizer",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Smart dependency analyzer and optimizer for Node.js projects - detect duplicates, analyze bundle size, and optimize your dependencies",
   "main": "dist/cli.js",
   "bin": {

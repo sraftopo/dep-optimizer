@@ -11,7 +11,7 @@ const program = new Command();
 program
   .name('dep-optimizer')
   .description('Smart dependency analyzer and optimizer for Node.js projects')
-  .version('1.0.0');
+  .version('0.0.1');
 
 program
   .command('scan')
