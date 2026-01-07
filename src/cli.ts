@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { DependencyScanner } from './analyzer/scanner';
 import { DuplicateDetector } from './analyzer/duplicates';
 import { Reporter } from './analyzer/reporter';
+import { FunctionalDuplicateDetector, FunctionalDuplicateReporter } from '../features/functional-duplicates';
 import * as path from 'path';
 
 const program = new Command();
@@ -165,6 +166,41 @@ program
       }
     } catch (error) {
       const reporter = new Reporter({ verbose: options.verbose, json: options.json });
+      reporter.reportError(error as Error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('functional-duplicates')
+  .alias('fd')
+  .description('Find packages that serve similar functional purposes (e.g., moment vs dayjs, lodash vs underscore)')
+  .option('-p, --path <path>', 'Project path to analyze', process.cwd())
+  .option('-v, --verbose', 'Show verbose output', false)
+  .option('--json', 'Output results in JSON format', false)
+  .option('--show-paths', 'Show file paths for each package', false)
+  .action(async (options) => {
+    try {
+      const projectPath = path.resolve(options.path);
+      const reporter = new FunctionalDuplicateReporter({
+        verbose: options.verbose,
+        json: options.json,
+        showPaths: options.showPaths,
+      });
+
+      reporter.reportProgress('Scanning dependencies');
+
+      const scanner = new DependencyScanner(projectPath);
+      const scanResult = await scanner.scan();
+
+      reporter.reportProgress('Analyzing functional duplicates');
+
+      const detector = new FunctionalDuplicateDetector();
+      const result = detector.analyze(scanResult.packages);
+
+      reporter.report(result);
+    } catch (error) {
+      const reporter = new FunctionalDuplicateReporter({ verbose: options.verbose, json: options.json });
       reporter.reportError(error as Error);
       process.exit(1);
     }
