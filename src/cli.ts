@@ -5,6 +5,7 @@ import { DependencyScanner } from './analyzer/scanner';
 import { DuplicateDetector } from './analyzer/duplicates';
 import { Reporter } from './analyzer/reporter';
 import * as path from 'path';
+import * as fs from 'fs';
 
 const program = new Command();
 
@@ -12,6 +13,45 @@ program
   .name('dep-optimizer')
   .description('Smart dependency analyzer and optimizer for Node.js projects')
   .version('0.0.1');
+
+/**
+ * Check if postinstall should be skipped
+ * Returns true if opt-out is configured or if running in dep-optimizer's own directory
+ */
+function shouldSkipPostinstall(projectPath: string): boolean {
+  // Check environment variable
+  if (process.env.DEP_OPTIMIZER_SKIP_POSTINSTALL === 'true') {
+    return true;
+  }
+
+  // Check package.json config
+  try {
+    const packageJsonPath = path.join(projectPath, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      if (packageJson.depOptimizer?.skipPostinstall === true) {
+        return true;
+      }
+    }
+  } catch (error) {
+    // Ignore errors reading package.json
+  }
+
+  // Check if running in dep-optimizer's own directory
+  try {
+    const packageJsonPath = path.join(projectPath, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+      if (packageJson.name === 'dep-optimizer') {
+        return true;
+      }
+    }
+  } catch (error) {
+    // Ignore errors reading package.json
+  }
+
+  return false;
+}
 
 program
   .command('scan')
@@ -167,6 +207,47 @@ program
       const reporter = new Reporter({ verbose: options.verbose, json: options.json });
       reporter.reportError(error as Error);
       process.exit(1);
+    }
+  });
+
+program
+  .command('postinstall')
+  .description('Run analysis automatically after npm install (internal use)')
+  .option('-p, --path <path>', 'Project path to analyze', process.cwd())
+  .action(async (options) => {
+    try {
+      const projectPath = path.resolve(options.path);
+
+      // Check if we should skip postinstall
+      if (shouldSkipPostinstall(projectPath)) {
+        return;
+      }
+
+      const reporter = new Reporter({
+        verbose: false,
+        json: false,
+        showPaths: false,
+      });
+
+      reporter.reportProgress('Scanning dependencies');
+
+      const scanner = new DependencyScanner(projectPath);
+      const scanResult = await scanner.scan();
+
+      reporter.reportScanResults(scanResult);
+
+      reporter.reportProgress('Analyzing duplicates');
+
+      const detector = new DuplicateDetector();
+      const duplicateResult = detector.analyze(scanResult.packages);
+
+      reporter.reportDuplicates(duplicateResult);
+    } catch (error) {
+      // Graceful error handling - warn but don't fail the install
+      const reporter = new Reporter({ verbose: false, json: false });
+      console.warn('\n⚠️  dep-optimizer: Analysis failed during postinstall (this will not block installation)');
+      reporter.reportError(error as Error);
+      // Don't call process.exit(1) - allow install to complete
     }
   });
 
