@@ -1,4 +1,7 @@
 import { FunctionalDuplicateGroup } from './types';
+import { DynamicGroupsGenerator } from './dynamic-groups';
+import { DynamicGroupsCache } from './cache';
+import { PackageInfo } from '../../src/analyzer/scanner';
 
 /**
  * Database of known functional duplicate groups
@@ -104,26 +107,137 @@ export const FUNCTIONAL_DUPLICATE_GROUPS: FunctionalDuplicateGroup[] = [
 ];
 
 /**
- * Get all functional duplicate groups
+ * Get all functional duplicate groups (hardcoded only)
  */
 export function getFunctionalDuplicateGroups(): FunctionalDuplicateGroup[] {
   return FUNCTIONAL_DUPLICATE_GROUPS;
 }
 
 /**
- * Find functional duplicate groups that contain a specific package
+ * Get all functional duplicate groups including dynamic ones
  */
-export function findGroupsForPackage(packageName: string): FunctionalDuplicateGroup[] {
-  return FUNCTIONAL_DUPLICATE_GROUPS.filter(group =>
+export async function getAllFunctionalDuplicateGroups(
+  packages?: PackageInfo[],
+  useDynamic: boolean = false,
+  useNpmRegistry: boolean = false,
+  useCache: boolean = true,
+  projectRoot?: string
+): Promise<FunctionalDuplicateGroup[]> {
+  const allGroups = [...FUNCTIONAL_DUPLICATE_GROUPS];
+
+  if (useDynamic && packages && packages.length > 0) {
+    const cache = new DynamicGroupsCache(projectRoot);
+    let dynamicGroups: FunctionalDuplicateGroup[] = [];
+
+    // Try to get from cache first
+    if (useCache) {
+      const packageNames = packages.map(p => p.name);
+      const cached = cache.getCachedGroups(packageNames);
+      if (cached) {
+        dynamicGroups = cached;
+      }
+    }
+
+    // Generate dynamic groups if not cached
+    if (dynamicGroups.length === 0) {
+      const generator = new DynamicGroupsGenerator(useNpmRegistry);
+      dynamicGroups = await generator.generateGroups(packages, useNpmRegistry);
+
+      // Cache the results
+      if (useCache && dynamicGroups.length > 0) {
+        const packageNames = packages.map(p => p.name);
+        cache.cacheGroups(packageNames, dynamicGroups);
+      }
+    }
+
+    // Merge dynamic groups with hardcoded ones
+    // Avoid duplicates by checking if packages are already in hardcoded groups
+    for (const dynamicGroup of dynamicGroups) {
+      const isDuplicate = allGroups.some(hardcodedGroup => {
+        const hardcodedPackages = new Set(
+          hardcodedGroup.packages.map(p => p.toLowerCase())
+        );
+        const dynamicPackages = dynamicGroup.packages.map(p => p.toLowerCase());
+        return dynamicPackages.some(p => hardcodedPackages.has(p));
+      });
+
+      if (!isDuplicate) {
+        allGroups.push(dynamicGroup);
+      }
+    }
+  }
+
+  return allGroups;
+}
+
+/**
+ * Find functional duplicate groups that contain a specific package
+ * First checks hardcoded groups, then falls back to dynamic groups if enabled
+ */
+export async function findGroupsForPackage(
+  packageName: string,
+  packages?: PackageInfo[],
+  useDynamic: boolean = false,
+  useNpmRegistry: boolean = false,
+  useCache: boolean = true,
+  projectRoot?: string
+): Promise<FunctionalDuplicateGroup[]> {
+  // First check hardcoded groups
+  const hardcodedGroups = FUNCTIONAL_DUPLICATE_GROUPS.filter(group =>
+    group.packages.some(pkg => pkg.toLowerCase() === packageName.toLowerCase())
+  );
+
+  if (hardcodedGroups.length > 0 || !useDynamic || !packages) {
+    return hardcodedGroups;
+  }
+
+  // Fallback to dynamic groups
+  const allGroups = await getAllFunctionalDuplicateGroups(
+    packages,
+    useDynamic,
+    useNpmRegistry,
+    useCache,
+    projectRoot
+  );
+
+  return allGroups.filter(group =>
     group.packages.some(pkg => pkg.toLowerCase() === packageName.toLowerCase())
   );
 }
 
 /**
  * Check if two packages are functional duplicates
+ * First checks hardcoded groups, then falls back to dynamic groups if enabled
  */
-export function areFunctionalDuplicates(package1: string, package2: string): boolean {
-  return FUNCTIONAL_DUPLICATE_GROUPS.some(group => {
+export async function areFunctionalDuplicates(
+  package1: string,
+  package2: string,
+  packages?: PackageInfo[],
+  useDynamic: boolean = false,
+  useNpmRegistry: boolean = false,
+  useCache: boolean = true,
+  projectRoot?: string
+): Promise<boolean> {
+  // First check hardcoded groups
+  const inHardcoded = FUNCTIONAL_DUPLICATE_GROUPS.some(group => {
+    const packages = group.packages.map(p => p.toLowerCase());
+    return packages.includes(package1.toLowerCase()) && packages.includes(package2.toLowerCase());
+  });
+
+  if (inHardcoded || !useDynamic || !packages) {
+    return inHardcoded;
+  }
+
+  // Fallback to dynamic groups
+  const allGroups = await getAllFunctionalDuplicateGroups(
+    packages,
+    useDynamic,
+    useNpmRegistry,
+    useCache,
+    projectRoot
+  );
+
+  return allGroups.some(group => {
     const packages = group.packages.map(p => p.toLowerCase());
     return packages.includes(package1.toLowerCase()) && packages.includes(package2.toLowerCase());
   });

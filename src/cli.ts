@@ -179,6 +179,10 @@ program
   .option('-v, --verbose', 'Show verbose output', false)
   .option('--json', 'Output results in JSON format', false)
   .option('--show-paths', 'Show file paths for each package', false)
+  .option('--show-desc', 'Show package descriptions and keywords', false)
+  .option('--dynamic', 'Enable dynamic detection of functional duplicates (analyzes package descriptions)', false)
+  .option('--npm-registry', 'Use npm registry API for additional metadata (requires internet)', false)
+  .option('--no-cache', 'Disable caching of dynamic groups', false)
   .action(async (options) => {
     try {
       const projectPath = path.resolve(options.path);
@@ -186,6 +190,7 @@ program
         verbose: options.verbose,
         json: options.json,
         showPaths: options.showPaths,
+        showDesc: options.showDesc,
       });
 
       reporter.reportProgress('Scanning dependencies');
@@ -193,10 +198,19 @@ program
       const scanner = new DependencyScanner(projectPath);
       const scanResult = await scanner.scan();
 
-      reporter.reportProgress('Analyzing functional duplicates');
+      if (options.dynamic) {
+        reporter.reportProgress('Analyzing functional duplicates (with dynamic detection)');
+      } else {
+        reporter.reportProgress('Analyzing functional duplicates');
+      }
 
       const detector = new FunctionalDuplicateDetector();
-      const result = detector.analyze(scanResult.packages);
+      const result = await detector.analyze(scanResult.packages, {
+        useDynamic: options.dynamic || false,
+        useNpmRegistry: options.npmRegistry || false,
+        useCache: !options.noCache,
+        projectRoot: projectPath,
+      });
 
       reporter.report(result);
     } catch (error) {

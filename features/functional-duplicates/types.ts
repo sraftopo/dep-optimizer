@@ -31,6 +31,18 @@ export interface FunctionalDuplicate {
 }
 
 /**
+ * Information about a package that depends on a functional duplicate
+ */
+export interface DependentPackage {
+  /** Name of the package that depends on this functional duplicate */
+  name: string;
+  /** Version of the dependent package */
+  version: string;
+  /** Whether this is a direct dependency (true) or transitive (false) */
+  isDirect: boolean;
+}
+
+/**
  * Information about a package found in the project
  */
 export interface FoundPackage {
@@ -42,6 +54,14 @@ export interface FoundPackage {
   size: number;
   /** Path to the package */
   path: string;
+  /** Dependency level: 0 = direct dependency, 1+ = transitive dependency */
+  level?: number;
+  /** List of packages that depend on this package (empty if it's a direct dependency) */
+  requiredBy?: DependentPackage[];
+  /** Package description from package.json or npm registry */
+  description?: string;
+  /** Package keywords from package.json or npm registry */
+  keywords?: string[];
 }
 
 /**
